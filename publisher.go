@@ -36,7 +36,7 @@ func PublishLog() chan EventBlock {
 }
 
 func PublishInflux(url, db string, maxIdle time.Duration) chan EventBlock {
-	c := make(chan EventBlock, 1)
+	c := make(chan EventBlock, 100)
 
 	u, err := uurl.Parse(url)
 	if err != nil {
