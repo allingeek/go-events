@@ -42,6 +42,7 @@ func NewContext(ctx context.Context, config EventsConfig) context.Context {
 	}
 	return context.WithValue(ctx, configKey, config)
 }
+
 func FromContext(ctx context.Context) (EventsConfig, bool) {
 	ec, ok := ctx.Value(configKey).(EventsConfig)
 	return ec, ok
@@ -85,6 +86,19 @@ func (r *Registry) Unsubscribe(name string) {
 	}
 }
 
+// Publish is called by the goroutine that has gathered events - typically via
+// the Write function. Publish is synchronous on a per-Registry basis however,
+// the actual publication operation for each subscriber happens asynchronously
+// in separate goroutines.
+//
+// In the event that a subscriber's channel is closed it will be automatically
+// unsubscribed from the Registry.
+//
+// Publication to each subscriber will timeout after the duration specified
+// during Registry configuration. In such an event the EventBlock will not be
+// written to the subscriber and an error message will be written to the log.
+// Automatically unsubscribing the subscriber in this case would cause more
+// significant data loss in the event of a transient backpressure issue.
 func (r *Registry) Publish(eb EventBlock) {
 	r.m.Lock()
 	defer r.m.Unlock()
@@ -164,6 +178,12 @@ type Timer struct {
 
 func NewTimer(name string) *Timer {
 	return &Timer{n: name}
+}
+
+func NewStartedTimer(name string) *Timer {
+	t := NewTimer(name)
+	t.Start()
+	return t
 }
 
 func (t *Timer) Name() string {

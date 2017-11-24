@@ -21,13 +21,19 @@ import (
 	influx "github.com/influxdata/influxdb/client"
 )
 
+// PublishLog returns a channel of EventBlocks after it starts a goroutine that reads
+// from that channel writing the EventBlocks to STDOUT via the log package. Closing the
+// channel will stop the goroutine.
 func PublishLog() chan EventBlock {
 	c := make(chan EventBlock, 1)
 	log.Println(`publisher started`)
 	go func() {
 		for {
 			select {
-			case eb := <-c:
+			case eb, more := <-c:
+				if !more {
+					return
+				}
 				log.Printf("publishing event: %v\n", eb)
 			}
 		}
@@ -35,6 +41,9 @@ func PublishLog() chan EventBlock {
 	return c
 }
 
+// PublishInflux returns a channel of EventBlocks and starts a goroutine that reads
+// from that channel and writes retireved EventBlocks using the InfluxDB client
+// library. Closing the returned channel will stop the associated goroutine.
 func PublishInflux(url, db string, maxIdle time.Duration) chan EventBlock {
 	c := make(chan EventBlock, 100)
 
@@ -62,7 +71,10 @@ func PublishInflux(url, db string, maxIdle time.Duration) chan EventBlock {
 					close(c)
 					return
 				}
-			case eb := <-c:
+			case eb, more := <-c:
+				if !more {
+					return
+				}
 				var pts []influx.Point
 				now := time.Now()
 				for _, e := range eb.events {
